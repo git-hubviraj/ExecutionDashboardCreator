@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Execution Report Tool</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#1a1a1a;padding:32px 40px;font-size:14px}
+    h1{font-size:1.4rem;font-weight:700;color:#111;margin-bottom:4px}
+    .subtitle{color:#7b6fa0;font-size:.82rem;margin-bottom:24px}
+    .stepper{display:flex;align-items:center;gap:16px;margin-bottom:28px}
+    .step{display:flex;align-items:center;gap:7px;font-size:.82rem;color:#999}
+    .step.active{color:#7b6fa0;font-weight:500}.step.done{color:#555}
+    .step-num{width:22px;height:22px;border-radius:50%;background:#e8e8e8;color:#777;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;flex-shrink:0}
+    .step.active .step-num{background:#7b6fa0;color:#fff}.step.done .step-num{background:#555;color:#fff}
+    .step-sep{color:#ccc;font-size:.8rem}
+    .panel{background:#f5f5f5;border-radius:10px;padding:20px 24px;margin-bottom:16px}
+    .panel-title{font-weight:600;font-size:.9rem;margin-bottom:14px;display:flex;align-items:center;gap:6px;color:#111}
+    .panel-title .sub{font-weight:400;color:#999;font-size:.78rem}
+    .file-btn-wrap{position:relative;display:inline-block}
+    .file-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:6px;font-size:.85rem;font-weight:500;cursor:pointer;color:#222}
+    .file-btn:hover{background:#f0f0f0}
+    .file-btn-wrap input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+    .file-chosen{margin-top:12px;font-size:.82rem;color:#555;display:none;align-items:center;gap:8px}
+    .file-chosen.show{display:flex}.file-chosen .check{color:#4caf50}
+
+    /* Multi-input checkbox list */
+    .input-search{width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:.85rem;margin-bottom:10px;outline:none}
+    .input-search:focus{border-color:#7b6fa0}
+    .input-list{max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;background:#fff}
+    .input-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;font-size:.85rem}
+    .input-item:last-child{border-bottom:none}
+    .input-item:hover{background:#f8f8ff}
+    .input-item input[type=checkbox]{width:15px;height:15px;accent-color:#7b6fa0;cursor:pointer;flex-shrink:0}
+    .input-item.checked{background:#f0eeff}
+    .sel-count{font-size:.78rem;color:#7b6fa0;margin-top:8px;font-weight:500}
+    .select-all-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:2px solid #e5e7eb;font-size:.82rem;font-weight:600;color:#555;cursor:pointer;background:#f9f9f9}
+    .select-all-row:hover{background:#f0f0f0}
+
+    /* Region dropdown */
+    .region-wrap{position:relative;max-width:400px}
+    .region-input{width:100%;padding:9px 36px 9px 14px;border:1.5px solid #1a73e8;border-radius:6px;font-size:.88rem;color:#222;background:#fff;cursor:pointer;outline:none;caret-color:transparent;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 12px center}
+    .region-dropdown{display:none;position:absolute;top:calc(100% + 3px);left:0;right:0;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.13);z-index:200;max-height:320px;overflow-y:auto}
+    .region-dropdown.open{display:block}
+    .r-opt{padding:9px 14px;font-size:.85rem;cursor:pointer;color:#333;display:flex;align-items:center;gap:8px}
+    .r-opt:hover{background:#f0f4ff}.r-opt.selected{background:#1a73e8;color:#fff}
+    .r-opt.birds-eye{border-bottom:1px solid #eee;font-weight:500}
+
+    /* Summary */
+    .summary-wrap{display:none;margin-top:20px}.summary-wrap.show{display:block}
+    .region-header-card{border:1px solid #e5e7eb;border-left:4px solid #ef4444;border-radius:8px;padding:14px 18px;margin-bottom:14px}
+    .region-header-card.green{border-left-color:#22c55e}.region-header-card.yellow{border-left-color:#f59e0b}.region-header-card.red{border-left-color:#ef4444}
+    .rhc-name{font-size:.72rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+    .rhc-pct{font-size:2rem;font-weight:800;line-height:1;margin-bottom:4px}
+    .rhc-pct.green{color:#16a34a}.rhc-pct.yellow{color:#d97706}.rhc-pct.red{color:#dc2626}
+    .rhc-sub{font-size:.78rem;color:#6b7280}
+    .legend{display:flex;align-items:center;gap:18px;font-size:.78rem;margin-bottom:12px;flex-wrap:wrap}
+    .legend-item{display:flex;align-items:center;gap:5px;font-weight:500}
+    .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block}
+    .dot-green{background:#22c55e}.dot-yellow{background:#f59e0b}.dot-red{background:#ef4444}
+    .sum-table-wrap{border:1px solid #e5e7eb;border-radius:8px;overflow:auto}
+    .sum-table{width:100%;border-collapse:collapse;font-size:.81rem}
+    .sum-table thead th{background:#f9fafb;padding:9px 12px;text-align:left;font-weight:600;color:#6b7280;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+    .sum-table thead th.r{text-align:right}.sum-table thead th.exec-h{text-align:right;min-width:150px}
+    .sum-table tr.row-region-total td{background:#eff6ff;font-weight:700;color:#1e3a5f;border-bottom:2px solid #bfdbfe;padding:9px 12px}
+    .sum-table tr.row-dm td{background:#fff;padding:8px 12px;border-bottom:1px solid #f0f0f0}
+    .sum-table tr.row-so td{background:#fafafa;padding:7px 12px;border-bottom:1px solid #f5f5f5;color:#555}
+    .sum-table tr.row-bev-total td{background:#eff6ff;font-weight:700;color:#1e3a5f;border-bottom:2px solid #bfdbfe;padding:9px 12px}
+    .sum-table tr.row-bev-region td{background:#fff;padding:8px 12px;border-bottom:1px solid #f0f0f0}
+    .sum-table td.r{text-align:right}.sum-table td.blue{color:#2563eb;text-align:right}
+    .sum-table td.num{text-align:right;color:#374151}.sum-table td.bold{font-weight:700}
+    .sum-table td.so-indent{padding-left:28px!important;color:#888;font-size:.78rem}
+    .sum-table td.dm-name-cell{color:#2563eb}
+    .exec-cell{display:flex;align-items:center;gap:7px;justify-content:flex-end}
+    .exec-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .exec-val{font-weight:700;font-size:.8rem;min-width:40px;text-align:right}
+    .exec-bar-bg{flex:1;height:5px;background:#e5e7eb;border-radius:99px;min-width:50px;max-width:80px;overflow:hidden}
+    .exec-bar-fill{height:100%;border-radius:99px}
+
+    /* Action bar */
+    .action-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:none;transition:background .12s}
+    .btn-purple{background:#7b6fa0;color:#fff}.btn-purple:hover{background:#6a5e8e}
+    .btn-green{background:#16a34a;color:#fff}.btn-green:hover{background:#15803d}
+    .btn-blue{background:#1a73e8;color:#fff}.btn-blue:hover{background:#1558b0}
+    .btn-wa{background:#25d366;color:#fff}.btn-wa:hover{background:#1da851}
+    .btn-outline{background:#fff;color:#555;border:1px solid #ddd}.btn-outline:hover{background:#f0f0f0}
+    .btn.success{background:#4caf50!important}
+
+    /* Overlay / modal */
+    .ep-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px}
+    .ep-modal{background:#fff;border-radius:10px;width:100%;max-width:820px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.22)}
+    .ep-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e5e7eb;font-weight:700;font-size:.95rem;color:#111;flex-shrink:0}
+    .ep-modal-actions{display:flex;gap:8px;align-items:center}
+    .ep-close{width:30px;height:30px;border-radius:50%;border:none;background:#f3f4f6;cursor:pointer;font-size:.85rem;color:#555;display:flex;align-items:center;justify-content:center}
+    .ep-close:hover{background:#e5e7eb}
+    .ep-modal-body{overflow-y:auto;padding:24px;flex:1}
+    .ep-subject{font-size:1rem;font-weight:700;color:#111;margin-bottom:4px}
+    .ep-meta{font-size:.78rem;color:#6b7280;margin-bottom:16px}
+    .ep-dear{font-size:.88rem;color:#111;margin-bottom:18px;line-height:1.6}
+    .ep-section-title{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid #e5e7eb}
+    .ep-table{width:100%;border-collapse:collapse;font-size:.81rem;margin-bottom:4px}
+    .ep-table thead th{background:#f9fafb;padding:8px 10px;text-align:left;font-weight:600;color:#6b7280;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+    .ep-table thead th.r{text-align:right}.ep-table thead th.exec-th{text-align:right;min-width:130px}
+    .ep-table tbody td{padding:7px 10px;border-bottom:1px solid #f3f4f6}
+    .ep-table tr.epr-total td{background:#eff6ff;font-weight:700;color:#1e3a5f;border-bottom:2px solid #bfdbfe}
+    .ep-table tr.epr-dm td{background:#fff;font-weight:600}
+    .ep-table tr.epr-so td{background:#fafafa;color:#555;font-size:.79rem}
+    .ep-table td.r{text-align:right}.ep-table td.blue{color:#2563eb;text-align:right}
+    .ep-table td.num{text-align:right;color:#374151}.ep-table td.so-in{padding-left:26px!important;color:#888}
+    .ep-table td.dm-nm{color:#2563eb}
+    .ep-findings{font-size:.82rem;line-height:2;color:#374151}
+    .ep-findings .f-line{margin-bottom:2px}
+    .f-strong{color:#16a34a;font-weight:600}.f-warn{color:#dc2626;font-weight:600}.f-best{color:#2563eb;font-weight:600}
+    .ep-sign{margin-top:20px;font-size:.82rem;color:#374151;line-height:1.8;border-top:1px solid #e5e7eb;padding-top:16px}
+    .hidden{display:none!important}
+  </style>
+</head>
+<body>
+
+<h1>Execution Report Tool</h1>
+<div class="subtitle">Upload CSV → Select Input(s) → Pick Region → Copy Email</div>
+
+<div class="stepper">
+  <div class="step active" id="s1"><span class="step-num">1</span> Upload CSV</div>
+  <span class="step-sep">›</span>
+  <div class="step" id="s2"><span class="step-num">2</span> Select input</div>
+  <span class="step-sep">›</span>
+  <div class="step" id="s3"><span class="step-num">3</span> Select region</div>
+  <span class="step-sep">›</span>
+  <div class="step" id="s4"><span class="step-num">4</span> Actions</div>
+</div>
+
+<!-- Step 1 -->
+<div class="panel" id="panel1">
+  <div class="panel-title">ℹ️ Upload execution data CSV</div>
+  <div class="file-btn-wrap">
+    <button class="file-btn" type="button">📁 Choose CSV or Excel file</button>
+    <input type="file" accept=".csv,.xlsx,.xls" id="csvInput"/>
+  </div>
+  <div class="file-chosen" id="fileChosen">
+    <span class="check">✔</span><span id="fileName"></span>
+    <span id="fileRows" style="color:#999;margin-left:4px;"></span>
+  </div>
+</div>
+
+<!-- Brand Manager Name (always visible) -->
+<div class="panel" id="panelBM" style="margin-bottom:16px;">
+  <div class="panel-title">✍️ Brand Manager Name</div>
+  <input type="text" id="bmName" placeholder="Enter Brand Manager name…"
+    style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:.88rem;width:320px;outline:none;"
+    onfocus="this.style.borderColor='#7b6fa0'" onblur="this.style.borderColor='#ddd'"/>
+  <span style="margin-left:10px;font-size:.78rem;color:#888;">Appears in email sign-off</span>
+</div>
+
+<!-- Step 2: Multi-input -->
+<div class="panel hidden" id="panel2">
+  <div class="panel-title">ℹ️ Select input(s)</div>
+  <input type="text" class="input-search" id="inputSearch" placeholder="Search inputs…" oninput="filterInputList(this.value)"/>
+  <div class="input-list" id="inputList"></div>
+  <div class="sel-count" id="selCount">0 selected</div>
+</div>
+
+<!-- Step 3 -->
+<div class="panel hidden" id="panel3">
+  <div class="panel-title">ℹ️ Select region <span class="sub">(RSM Area)</span></div>
+  <div class="region-wrap">
+    <input type="text" class="region-input" id="regionInput" placeholder="Search or select region…"
+      autocomplete="off" onclick="toggleDropdown(event)" oninput="filterRegions(this.value)" readonly/>
+    <div class="region-dropdown" id="regionDropdown"></div>
+  </div>
+
+  <div class="summary-wrap" id="summaryWrap">
+    <div class="region-header-card" id="headerCard">
+      <div class="rhc-name" id="headerName"></div>
+      <div class="rhc-pct" id="headerPct"></div>
+      <div class="rhc-sub" id="headerSub"></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="dot dot-green"></span> Strong ≥60%</div>
+      <div class="legend-item"><span class="dot dot-yellow"></span> Moderate 30–59%</div>
+      <div class="legend-item"><span class="dot dot-red"></span> Low &lt;30%</div>
+    </div>
+    <div class="sum-table-wrap">
+      <table class="sum-table"><thead id="sumThead"></thead><tbody id="sumTbody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- Step 4: Action bar -->
+<div class="panel hidden" id="panel4step">
+  <div class="panel-title" style="justify-content:space-between;align-items:center;margin-bottom:0;">
+    <span id="actionBarLabel">ℹ️ Actions</span>
+    <div class="action-bar" id="actionBar"></div>
+  </div>
+</div>
+
+<!-- Email Preview Modal -->
+<div id="emailPreviewOverlay" class="ep-overlay hidden">
+  <div class="ep-modal">
+    <div class="ep-modal-header">
+      <span id="epTitle">Email Preview</span>
+      <div class="ep-modal-actions">
+        <button class="btn btn-purple" id="copyBtn" onclick="copyEmail()">📋 Copy email</button>
+        <button class="ep-close" onclick="closePreview()">✕</button>
+      </div>
+    </div>
+    <div class="ep-modal-body" id="emailPreviewBody"></div>
+  </div>
+</div>
+
+<script>
+  let csvData=[], headers=[], selectedInputs=[], selectedRegion='', emailData=null, bevData=null;
+
+  const RSM_REGIONS=['ASS REGION','BIH + JHK REGION','CHE REGION','DEL REGION',
+    'HYD REGION','KAR REGION','KER REGION','KOL REGION','MUM REGION',
+    'NAG + MP + CG REGION','ORI REGION','PJB REGION','PUN REGION',
+    'RAJ + GUJ REGION','UP EAST REGION','UP WEST REGION'];
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  function getBMName(){
+    const v=document.getElementById('bmName');
+    return(v&&v.value.trim())?v.value.trim():'Brand Manager';
+  }
+  function setStep(n){[1,2,3,4].forEach(i=>{const el=document.getElementById('s'+i);el.classList.remove('active','done');if(i<n)el.classList.add('done');else if(i===n)el.classList.add('active')});}
+  function showPanel(n){[1,2,3].forEach(i=>document.getElementById('panel'+i).classList.toggle('hidden',i>n));}
+  function sumCol(arr,col){return col?arr.reduce((a,r)=>a+(parseFloat(r[col])||0),0):0;}
+  function execPct(used,alloc){return alloc>0?(used/alloc*100):0;}
+  function pctClass(p){return p>=60?'green':p>=30?'yellow':'red';}
+  function pctColor(p){return p>=60?'#22c55e':p>=30?'#f59e0b':'#ef4444';}
+  function fmt(n){return Math.round(n).toLocaleString();}
+  function execCell(pct){const c=pctColor(pct);return `<div class="exec-cell"><span class="exec-dot" style="background:${c}"></span><span class="exec-val" style="color:${c}">${pct.toFixed(1)}%</span><div class="exec-bar-bg"><div class="exec-bar-fill" style="width:${Math.min(pct,100)}%;background:${c}"></div></div></div>`;}
+  // Count unique SOs (unique SO_NAME values) in a set of rows
+  function countSOs(arr){
+    const soNameC=cols.soNameCol;
+    if(!soNameC)return arr.length;
+    return new Set(arr.map(r=>r[soNameC]).filter(Boolean)).size;
+  }
+
+  // ── CSV parse ──────────────────────────────────────────────────────────
+  function parseCSV(text){
+    const lines=text.trim().split(/\r?\n/).filter(Boolean);
+    if(!lines.length)return{headers:[],rows:[]};
+    const sep=lines[0].includes('\t')?'\t':',';
+    const hdrs=lines[0].split(sep).map(h=>h.trim().replace(/^"|"$/g,''));
+    const rows=lines.slice(1).map(line=>{
+      const vals=splitLine(line,sep);const obj={};
+      hdrs.forEach((h,i)=>obj[h]=(vals[i]||'').trim().replace(/^"|"$/g,''));return obj;
+    });
+    return{headers:hdrs,rows};
+  }
+  function splitLine(line,sep){
+    if(sep==='\t')return line.split('\t');
+    const r=[];let cur='',inQ=false;
+    for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){r.push(cur);cur='';}else cur+=c;}
+    r.push(cur);return r;
+  }
+
+  // ── Column detection ───────────────────────────────────────────────────
+  let cols={};
+  function detectCols(hdrs){
+    return{
+      inputCol:  hdrs.includes('SGPI_PRODUCTNAME')?'SGPI_PRODUCTNAME':hdrs[0],
+      rsmAreaCol:hdrs.find(h=>h==='RSM_AREA')||hdrs.find(h=>/^rsm.area$/i.test(h)),
+      rsmNameCol:hdrs.find(h=>h==='RSM_NAME')||hdrs.find(h=>/^rsm.name$/i.test(h)),
+      dmAreaCol: hdrs.find(h=>h==='DM_AREA')||hdrs.find(h=>/^dm.area$/i.test(h)),
+      dmNameCol: hdrs.find(h=>h==='DM_NAME')||hdrs.find(h=>/^dm.name$/i.test(h)),
+      soNameCol: hdrs.find(h=>h==='SO_NAME')||hdrs.find(h=>/^so.name$/i.test(h)),
+      openCol:   hdrs.find(h=>/opening|open_qty/i.test(h)),
+      utilCol:   hdrs.find(h=>/utilised|utilized|util_qty/i.test(h)),
+      receiptCol:hdrs.find(h=>/receipt/i.test(h)),
+    };
+  }
+
+  // ── Upload ─────────────────────────────────────────────────────────────
+  document.getElementById('csvInput').addEventListener('change',function(){
+    if(!this.files[0])return;
+    const file=this.files[0];
+    const ext=file.name.split('.').pop().toLowerCase();
+
+    const processRows=(hdrs,rows)=>{
+      headers=hdrs; csvData=rows; cols=detectCols(headers);
+      document.getElementById('fileName').textContent=file.name;
+      document.getElementById('fileRows').textContent='('+csvData.length+' rows)';
+      document.getElementById('fileChosen').classList.add('show');
+      buildInputList(); buildRegionDropdown();
+      setStep(2); showPanel(2);
+    };
+
+    if(ext==='xlsx'||ext==='xls'){
+      const reader=new FileReader();
+      reader.onload=e=>{
+        try{
+          const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+          const ws=wb.Sheets[wb.SheetNames[0]];
+          const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+          if(!raw.length){alert('Excel file appears empty.');return;}
+          let hdrIdx=0;
+          while(hdrIdx<raw.length&&raw[hdrIdx].every(c=>c===''||c===null||c===undefined))hdrIdx++;
+          const hdrs=raw[hdrIdx].map(h=>String(h==null?'':h).trim());
+          const rows=raw.slice(hdrIdx+1)
+            .filter(r=>r.some(c=>c!==''&&c!==null&&c!==undefined))
+            .map(r=>{
+              const obj={};
+              hdrs.forEach((h,i)=>obj[h]=(r[i]!==undefined&&r[i]!==null)?String(r[i]).trim():'');
+              return obj;
+            });
+          processRows(hdrs,rows);
+        }catch(err){alert('Error reading Excel file: '+err.message);}
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const parsed=parseCSV(e.target.result);
+        processRows(parsed.headers,parsed.rows);
+      };
+      reader.readAsText(file);
+    }
+  });
+
+  // ── Multi-input list ───────────────────────────────────────────────────
+  let allInputs=[];
+  function buildInputList(){
+    allInputs=[...new Set(csvData.map(r=>r[cols.inputCol]).filter(Boolean))].sort();
+    renderInputList(allInputs);
+  }
+  function renderInputList(items){
+    const list=document.getElementById('inputList');
+    list.innerHTML=`<div class="select-all-row" onclick="toggleSelectAll()">
+      <input type="checkbox" id="chkAll" onclick="event.stopPropagation()"> Select All</div>`;
+    items.forEach(v=>{
+      const checked=selectedInputs.includes(v);
+      const div=document.createElement('div');
+      div.className='input-item'+(checked?' checked':'');
+      div.innerHTML=`<input type="checkbox" value="${v}" ${checked?'checked':''}> ${v}`;
+      div.querySelector('input').addEventListener('change',function(){toggleInput(v,this.checked);});
+      div.addEventListener('click',function(e){if(e.target.tagName!=='INPUT'){const cb=this.querySelector('input');cb.checked=!cb.checked;toggleInput(v,cb.checked);}});
+      list.appendChild(div);
+    });
+    updateSelCount();
+  }
+  function filterInputList(val){
+    const fl=val.toLowerCase();
+    renderInputList(allInputs.filter(v=>v.toLowerCase().includes(fl)));
+  }
+  function toggleInput(val,checked){
+    if(checked){if(!selectedInputs.includes(val))selectedInputs.push(val);}
+    else{selectedInputs=selectedInputs.filter(v=>v!==val);}
+    // update item class
+    document.querySelectorAll('.input-item').forEach(el=>{
+      const cb=el.querySelector('input');if(cb&&cb.value===val)el.classList.toggle('checked',checked);
+    });
+    updateSelCount();
+    if(selectedInputs.length>0){setStep(3);showPanel(3);document.getElementById('summaryWrap').classList.remove('show');document.getElementById('panel4step').classList.add('hidden');}
+    if(selectedRegion==='__ALL__')showBirdsEye();
+    else if(selectedRegion)renderRegion(selectedRegion);
+    updateSelectAllCheckbox();
+  }
+  function toggleSelectAll(){
+    const chkAll=document.getElementById('chkAll');
+    const visibleItems=document.querySelectorAll('.input-item input[type=checkbox]');
+    const visibleVals=[...visibleItems].map(cb=>cb.value);
+    const allChecked=visibleVals.every(v=>selectedInputs.includes(v));
+    visibleVals.forEach(v=>{
+      if(allChecked){selectedInputs=selectedInputs.filter(x=>x!==v);}
+      else{if(!selectedInputs.includes(v))selectedInputs.push(v);}
+    });
+    renderInputList([...document.querySelectorAll('.input-item')].map(el=>el.querySelector('input')?.value).filter(Boolean));
+    if(selectedInputs.length>0){setStep(3);showPanel(3);}
+    if(selectedRegion==='__ALL__')showBirdsEye();
+    else if(selectedRegion)renderRegion(selectedRegion);
+  }
+  function updateSelectAllCheckbox(){
+    const chkAll=document.getElementById('chkAll');if(!chkAll)return;
+    const visibleVals=[...document.querySelectorAll('.input-item input[type=checkbox]')].map(cb=>cb.value);
+    chkAll.checked=visibleVals.length>0&&visibleVals.every(v=>selectedInputs.includes(v));
+  }
+  function updateSelCount(){document.getElementById('selCount').textContent=selectedInputs.length+' selected';}
+
+  // ── Region dropdown ────────────────────────────────────────────────────
+  function buildRegionDropdown(filter=''){
+    const dd=document.getElementById('regionDropdown');dd.innerHTML='';
+    const fl=filter.toLowerCase();
+    if(!fl){
+      const opt=document.createElement('div');
+      opt.className='r-opt birds-eye'+(selectedRegion==='__ALL__'?' selected':'');
+      opt.innerHTML='<span>🌐</span> All Regions — HO Bird Eye View';
+      opt.onclick=(e)=>{e.stopPropagation();selectRegion('__ALL__','All Regions — HO Bird Eye View');};
+      dd.appendChild(opt);
+    }
+    RSM_REGIONS.filter(r=>r.toLowerCase().includes(fl)).forEach(r=>{
+      const opt=document.createElement('div');
+      opt.className='r-opt'+(selectedRegion===r?' selected':'');
+      opt.textContent=r;
+      opt.onclick=(e)=>{e.stopPropagation();selectRegion(r,r);};
+      dd.appendChild(opt);
+    });
+  }
+  function toggleDropdown(e){
+    e.stopPropagation();const dd=document.getElementById('regionDropdown');
+    if(dd.classList.contains('open')){dd.classList.remove('open');}
+    else{buildRegionDropdown('');dd.classList.add('open');}
+  }
+  function filterRegions(val){
+    document.getElementById('regionInput').removeAttribute('readonly');
+    buildRegionDropdown(val);document.getElementById('regionDropdown').classList.add('open');
+  }
+  document.addEventListener('click',e=>{if(!e.target.closest('.region-wrap'))document.getElementById('regionDropdown').classList.remove('open');});
+  function selectRegion(value,label){
+    selectedRegion=value;
+    document.getElementById('regionInput').value=label;
+    document.getElementById('regionDropdown').classList.remove('open');
+    if(!selectedInputs.length)return;
+    if(value==='__ALL__')showBirdsEye();else renderRegion(value);
+  }
+
+  // ── Get rows for inputs+region ─────────────────────────────────────────
+  function getRows(inputs,region){
+    let rows=csvData.filter(r=>inputs.includes(r[cols.inputCol]));
+    if(region&&region!=='__ALL__'&&cols.rsmAreaCol)rows=rows.filter(r=>r[cols.rsmAreaCol]===region);
+    return rows;
+  }
+
+  // ── SINGLE / MULTI REGION VIEW ─────────────────────────────────────────
+  function renderRegion(region){
+    if(!selectedInputs.length)return;
+    const openC=cols.openCol,utilC=cols.utilCol,receiptC=cols.receiptCol;
+    const dmAreaC=cols.dmAreaCol,dmNameC=cols.dmNameCol,soNameC=cols.soNameCol;
+
+    // For header card: aggregate across ALL selected inputs
+    const allRows=getRows(selectedInputs,region);
+    const totOpen=sumCol(allRows,openC),totUtil=sumCol(allRows,utilC),totReceipt=sumCol(allRows,receiptC);
+    const totPct=execPct(totUtil,totReceipt),cls=pctClass(totPct);
+
+    document.getElementById('headerName').textContent=selectedInputs.length===1?selectedInputs[0]:`${selectedInputs.length} Inputs`;
+    const hPct=document.getElementById('headerPct');
+    hPct.textContent=totPct.toFixed(1)+'%';hPct.className='rhc-pct '+cls;
+    document.getElementById('headerCard').className='region-header-card '+cls;
+    document.getElementById('headerSub').innerHTML=`<span>${fmt(totReceipt)} receipt</span> / <span>${fmt(totUtil)} utilised</span>`;
+
+    // Build per-input data
+    const inputDataArr=selectedInputs.map(inp=>{
+      const rows=getRows([inp],region);
+      const iOpen=sumCol(rows,openC),iUtil=sumCol(rows,utilC),iReceipt=receiptC?sumCol(rows,receiptC):0;
+      return{inp,rows,iOpen,iUtil,iReceipt,iPct:execPct(iUtil,iReceipt)};
+    });
+
+    // Table head — fixed cols + one set of Open/Util/Exec% per input
+    const multiInput=selectedInputs.length>1;
+    let thead='<tr><th>Region</th><th>DM HQ</th><th>DM Name</th>';
+    if(multiInput){
+      inputDataArr.forEach(({inp})=>{thead+=`<th class="r" colspan="3" style="background:#eef2ff;border-left:2px solid #c7d2fe;">${inp}</th>`;});
+      thead+='<th class="exec-h" style="background:#1e3a5f;color:#fff;border-left:3px solid #1e3a5f;">Total Exec %</th>';
+    } else {
+      thead+='<th class="r">Receipt Qty</th><th class="r">Utilised</th><th class="exec-h">Exec %</th>';
+    }
+    thead+='</tr>';
+    if(multiInput){
+      thead+='<tr><th colspan="3"></th>';
+      inputDataArr.forEach(()=>{thead+='<th class="r" style="background:#f5f7ff;border-left:2px solid #c7d2fe;">Receipt Qty</th><th class="r" style="background:#f5f7ff;">Utilised</th><th class="exec-h" style="background:#f5f7ff;">Exec %</th>';});
+      thead+='<th style="background:#e8edf5;border-left:3px solid #1e3a5f;"></th>';
+      thead+='</tr>';
+    }
+    document.getElementById('sumThead').innerHTML=thead;
+
+    // Group rows by DM_AREA across all inputs combined for DM structure
+    const dmKeys=[...new Set(allRows.map(r=>(dmAreaC?r[dmAreaC]:null)||'—'))];
+    let html='';
+
+    // Region total row
+    html+=`<tr class="row-region-total"><td colspan="3" class="bold">${region} — Total</td>`;
+    if(multiInput){
+      inputDataArr.forEach(({inp,iUtil,iReceipt,iPct})=>{
+        html+=`<td class="r bold" style="border-left:2px solid #c7d2fe;">${fmt(iReceipt)}</td><td class="r bold">${fmt(iUtil)}</td><td>${execCell(iPct)}</td>`;
+      });
+      html+=`<td style="border-left:3px solid #1e3a5f;background:#dbeafe;">${execCell(totPct)}</td>`;
+    } else {
+      html+=`<td class="r bold">${fmt(totReceipt)}</td><td class="r bold">${fmt(totUtil)}</td><td>${execCell(totPct)}</td>`;
+    }
+    html+='</tr>';
+
+    // DM rows
+    dmKeys.forEach(dmHQ=>{
+      const dmAllRows=allRows.filter(r=>((dmAreaC?r[dmAreaC]:null)||'—')===dmHQ);
+      const dmName=dmNameC?(dmAllRows[0][dmNameC]||'—'):'—';
+      const dmOpen=sumCol(dmAllRows,openC),dmUtil=sumCol(dmAllRows,utilC),dmReceipt=sumCol(dmAllRows,receiptC);
+      const dmPct=execPct(dmUtil,dmReceipt);
+
+      html+=`<tr class="row-dm"><td></td><td class="bold">${dmHQ}</td><td class="dm-name-cell">${dmName}</td>`;
+      if(multiInput){
+        inputDataArr.forEach(({inp})=>{
+          const dRows=dmAllRows.filter(r=>r[cols.inputCol]===inp);
+          const dR=sumCol(dRows,receiptC),dO=sumCol(dRows,openC),dU=sumCol(dRows,utilC),dP=execPct(dU,dR);
+          html+=`<td class="num" style="border-left:2px solid #e0e7ff;">${fmt(dR)}</td><td class="blue">${fmt(dU)}</td><td>${execCell(dP)}</td>`;
+        });
+        html+=`<td style="border-left:3px solid #c7d2fe;background:#f0f4ff;">${execCell(dmPct)}</td>`;
+      } else {
+        html+=`<td class="num">${fmt(dmReceipt)}</td><td class="blue">${fmt(dmUtil)}</td><td>${execCell(dmPct)}</td>`;
+      }
+      html+='</tr>';
+
+      // SO rows (unique SO names within this DM)
+      const soKeys=[...new Set(dmAllRows.map(r=>(soNameC?r[soNameC]:null)||'—'))];
+      soKeys.forEach(soName=>{
+        const soAllRows=dmAllRows.filter(r=>((soNameC?r[soNameC]:null)||'—')===soName);
+        html+=`<tr class="row-so"><td></td><td class="so-indent">└ SO</td><td>${soName}</td>`;
+        if(multiInput){
+          inputDataArr.forEach(({inp})=>{
+            const sRows=soAllRows.filter(r=>r[cols.inputCol]===inp);
+            const sR_inp=sumCol(sRows,receiptC),sU=sumCol(sRows,utilC),sP=execPct(sU,sR_inp);
+            html+=`<td class="num" style="border-left:2px solid #e0e7ff;">${sRows.length?fmt(sR_inp):'—'}</td><td class="blue">${sRows.length?fmt(sU):'—'}</td><td>${sRows.length?execCell(sP):'—'}</td>`;
+          });
+        } else {
+          const sR=sumCol(soAllRows,receiptC),sO=sumCol(soAllRows,openC),sU=sumCol(soAllRows,utilC),sP=execPct(sU,sR);
+          html+=`<td class="num">${fmt(sR)}</td><td class="blue">${fmt(sU)}</td><td>${execCell(sP)}</td>`;
+        }
+        html+='</tr>';
+      });
+    });
+
+    document.getElementById('sumTbody').innerHTML=html;
+    document.getElementById('summaryWrap').classList.add('show');
+    setStep(4);
+    buildEmailData(region,inputDataArr,allRows);
+    showActionBar('region');
+  }
+
+  // ── BIRDS EYE VIEW ─────────────────────────────────────────────────────
+  function showBirdsEye(){
+    if(!selectedInputs.length)return;
+    const openC=cols.openCol,utilC=cols.utilCol,receiptC=cols.receiptCol,rsmCol=cols.rsmAreaCol;
+    const allRows=getRows(selectedInputs,'__ALL__');
+    const totOpen=sumCol(allRows,openC),totUtil=sumCol(allRows,utilC),totReceipt=sumCol(allRows,receiptC);
+    const totPct=execPct(totUtil,totReceipt),cls=pctClass(totPct);
+
+    document.getElementById('headerName').textContent=selectedInputs.length===1?selectedInputs[0]:`${selectedInputs.length} Inputs — All Regions`;
+    const hPct=document.getElementById('headerPct');
+    hPct.textContent=totPct.toFixed(1)+'%';hPct.className='rhc-pct '+cls;
+    document.getElementById('headerCard').className='region-header-card '+cls;
+    document.getElementById('headerSub').innerHTML=`<span>${fmt(totReceipt)} receipt</span> / <span>${fmt(totUtil)} utilised</span>`;
+
+    const multiInput=selectedInputs.length>1;
+    // Table head
+    let thead='<tr><th>Region</th>';
+    if(multiInput){
+      selectedInputs.forEach(inp=>{thead+=`<th class="r" colspan="3" style="background:#eef2ff;border-left:2px solid #c7d2fe;">${inp}</th>`;});
+      thead+='<th class="exec-h" style="background:#1e3a5f;color:#fff;border-left:3px solid #1e3a5f;">Total Exec %</th>';
+    } else {
+      thead+='<th class="r">Receipt Qty</th><th class="r">Utilised</th><th class="exec-h">Exec %</th>';
+    }
+    thead+='</tr>';
+    if(multiInput){
+      thead+='<tr><th></th>';
+      selectedInputs.forEach(()=>{thead+='<th class="r" style="background:#f5f7ff;border-left:2px solid #c7d2fe;">Receipt Qty</th><th class="r" style="background:#f5f7ff;">Utilised</th><th class="exec-h" style="background:#f5f7ff;">Exec %</th>';});
+      thead+='<th style="background:#e8edf5;border-left:3px solid #1e3a5f;"></th>';
+      thead+='</tr>';
+    }
+    document.getElementById('sumThead').innerHTML=thead;
+
+    // Group by region
+    const regionKeys=rsmCol?[...new Set(allRows.map(r=>r[rsmCol]).filter(Boolean))]:['All'];
+    const regionData=regionKeys.map(rg=>{
+      const rgRows=rsmCol?allRows.filter(r=>r[rsmCol]===rg):allRows;
+      const rOpen=sumCol(rgRows,openC),rUtil=sumCol(rgRows,utilC);
+      const perInput=selectedInputs.map(inp=>{
+        const iRows=rgRows.filter(r=>r[cols.inputCol]===inp);
+        const iU=sumCol(iRows,utilC),iR=receiptC?sumCol(iRows,receiptC):0;
+        return{inp,iO:iR,iU,iP:execPct(iU,iR)};
+      });
+      const rReceipt=sumCol(rgRows,receiptC);
+      return{rg,sos:countSOs(rgRows),rOpen,rUtil,rPct:execPct(rUtil,rReceipt),perInput};
+    }).sort((a,b)=>b.rPct-a.rPct);
+
+    // Save for excel
+    bevData={regionData,totOpen,totUtil,totPct,allRows,multiInput};
+
+    let html=`<tr class="row-bev-total"><td class="bold">ALL REGIONS — Total</td>`;
+    if(multiInput){
+      selectedInputs.forEach(inp=>{
+        const iRows=allRows.filter(r=>r[cols.inputCol]===inp);
+        const iU=sumCol(iRows,utilC),iR2=receiptC?sumCol(iRows,receiptC):0,iP=execPct(iU,iR2);
+        html+=`<td class="r bold" style="border-left:2px solid #c7d2fe;">${fmt(iR2)}</td><td class="r bold">${fmt(iU)}</td><td>${execCell(iP)}</td>`;
+      });
+      html+=`<td style="border-left:3px solid #1e3a5f;background:#dbeafe;">${execCell(totPct)}</td>`;
+    } else {
+      html+=`<td class="r bold">${fmt(totReceipt)}</td><td class="r bold">${fmt(totUtil)}</td><td>${execCell(totPct)}</td>`;
+    }
+    html+='</tr>';
+
+    regionData.forEach(({rg,sos,rOpen,rUtil,rPct,perInput})=>{
+      html+=`<tr class="row-bev-region"><td class="bold">${rg}</td>`;
+      if(multiInput){
+        perInput.forEach(({iO,iU,iP})=>{html+=`<td class="num" style="border-left:2px solid #e0e7ff;">${fmt(iO)}</td><td class="blue">${fmt(iU)}</td><td>${execCell(iP)}</td>`;});
+        html+=`<td style="border-left:3px solid #c7d2fe;background:#f0f4ff;">${execCell(rPct)}</td>`;
+      } else {
+        const rRRows=allRows.filter(r=>cols.rsmAreaCol?r[cols.rsmAreaCol]===rg:true);
+        const rReceipt2=receiptC?sumCol(rRRows,receiptC):0;
+        html+=`<td class="num">${fmt(rReceipt2)}</td><td class="blue">${fmt(rUtil)}</td><td>${execCell(rPct)}</td>`;
+      }
+      html+='</tr>';
+    });
+
+    document.getElementById('sumTbody').innerHTML=html;
+    document.getElementById('summaryWrap').classList.add('show');
+    setStep(3);showPanel(3);
+    showActionBar('bev');
+  }
+
+  // ── Action bar ─────────────────────────────────────────────────────────
+  function showActionBar(mode){
+    const bar=document.getElementById('actionBar');
+    const label=document.getElementById('actionBarLabel');
+    bar.innerHTML='';
+    if(mode==='region'){
+      label.textContent='ℹ️ Generate & copy email for RSM';
+      const b1=document.createElement('button');b1.className='btn btn-purple';b1.innerHTML='📧 Preview email';b1.onclick=()=>openEmailPreview('region');bar.appendChild(b1);
+      const bw=document.createElement('button');bw.className='btn btn-wa';bw.innerHTML='💬 Share on WhatsApp';bw.onclick=()=>openWaModal('region');bar.appendChild(bw);
+      const b2=document.createElement('button');b2.className='btn btn-green';b2.innerHTML='⬇️ Download Excel';b2.onclick=()=>downloadRegionExcel();bar.appendChild(b2);
+    } else {
+      label.textContent='ℹ️ Bird Eye View — Actions';
+      const b1=document.createElement('button');b1.className='btn btn-blue';b1.innerHTML='📧 Preview email';b1.onclick=()=>openEmailPreview('bev');bar.appendChild(b1);
+      const bw=document.createElement('button');bw.className='btn btn-wa';bw.innerHTML='💬 Share on WhatsApp';bw.onclick=()=>openWaModal('bev');bar.appendChild(bw);
+      const b2=document.createElement('button');b2.className='btn btn-green';b2.innerHTML='⬇️ Download Excel';b2.onclick=()=>downloadBevExcel();bar.appendChild(b2);
+    }
+    const rst=document.createElement('button');rst.className='btn btn-outline';rst.innerHTML='↺ Reset';rst.onclick=resetAll;bar.appendChild(rst);
+    document.getElementById('panel4step').classList.remove('hidden');
+  }
+
+  // ── Email data builder ─────────────────────────────────────────────────
+  function buildEmailData(region,inputDataArr,allRows){
+    const openC=cols.openCol,utilC=cols.utilCol,receiptC=cols.receiptCol;
+    const dmAreaC=cols.dmAreaCol,dmNameC=cols.dmNameCol,soNameC=cols.soNameCol;
+    const division=allRows[0]?Object.values(allRows[0])[1]||'':'';
+    const rsmName=cols.rsmNameCol?(allRows[0]?.[cols.rsmNameCol]||''):'';
+    const totUtil2=sumCol(allRows,utilC),totRec2=cols.receiptCol?sumCol(allRows,cols.receiptCol):0;
+    const totOpen=totRec2,totUtil=totUtil2;
+    const totPct=execPct(totUtil2,totRec2);
+
+    const dmKeys=[...new Set(allRows.map(r=>(dmAreaC?r[dmAreaC]:null)||'—'))];
+    const dmData=dmKeys.map(dmHQ=>{
+      const dmAllRows=allRows.filter(r=>((dmAreaC?r[dmAreaC]:null)||'—')===dmHQ);
+      const dmName=dmNameC?(dmAllRows[0][dmNameC]||'—'):'—';
+      const dmOpen=sumCol(dmAllRows,openC),dmUtil=sumCol(dmAllRows,utilC);
+      const soKeys=[...new Set(dmAllRows.map(r=>(soNameC?r[soNameC]:null)||'—'))];
+      const soRows=soKeys.map(soName=>{
+        const sRows=dmAllRows.filter(r=>((soNameC?r[soNameC]:null)||'—')===soName);
+        const sU2=sumCol(sRows,utilC),sR2=cols.receiptCol?sumCol(sRows,cols.receiptCol):0;
+        return{soName,soOpen:sR2,soUtil:sU2,soPct:execPct(sU2,sR2)};
+      });
+      const dmR2=cols.receiptCol?sumCol(dmAllRows,cols.receiptCol):0;
+      return{dmHQ,dmName,dmOpen:dmR2,dmUtil,dmPct:execPct(dmUtil,dmR2),soRows};
+    });
+    emailData={region,inputDataArr,allRows,totOpen,totUtil,totPct,dmData,division,rsmName};
+  }
+
+  // ── Email preview open ──────────────────────────────────────────────────
+  function openEmailPreview(mode){
+    if(mode==='region'&&!emailData)return;
+    buildEmailPreview(mode);
+    document.getElementById('emailPreviewOverlay').classList.remove('hidden');
+  }
+  function closePreview(){document.getElementById('emailPreviewOverlay').classList.add('hidden');}
+
+  function buildEmailPreview(mode){
+    const today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    let body='',title='';
+    const multiInput=selectedInputs.length>1;
+
+    // Shared style helpers
+    const TH  ='padding:8px 10px;border:1px solid #c7d2fe;background:#1e3a5f;color:#fff;font-weight:700;text-align:';
+    const THG  ='padding:8px 10px;border:1px solid #ddd;background:#f3f4f6;color:#374151;font-weight:600;text-align:';
+    const THSUB='padding:7px 10px;border:1px solid #ddd;background:#eef2ff;color:#1e40af;font-weight:600;text-align:';
+    const TD  ='padding:7px 10px;border:1px solid #e5e7eb;';
+    const TDR ='padding:7px 10px;border:1px solid #e5e7eb;text-align:right;';
+    const TDTOT='padding:8px 10px;border:1px solid #bfdbfe;background:#eff6ff;font-weight:700;text-align:right;color:#1e3a5f;';
+
+    function pctTd(pct,extra=''){
+      const c=pct>=60?'#16a34a':pct>=30?'#d97706':'#dc2626';
+      return `<td style="${TDR}font-weight:700;color:${c};${extra}">${pct.toFixed(1)}%</td>`;
+    }
+    function totalPctTd(pct){
+      const c=pct>=60?'#16a34a':pct>=30?'#d97706':'#dc2626';
+      return `<td style="${TDTOT}border-left:3px solid #1e3a5f;color:${c};">${pct.toFixed(1)}%</td>`;
+    }
+
+    if(mode==='region'){
+      const{region,inputDataArr,allRows,totOpen,totUtil,totPct,dmData,division,rsmName}=emailData;
+      const pctColorVal=totPct>=60?'#16a34a':totPct>=30?'#d97706':'#dc2626';
+      const statusLabel=totPct>=60?'STRONG ✅':totPct>=30?'MODERATE ⚠️':'LOW ❌';
+      title=`Input Execution Report – ${region}`;
+
+      // ── REGION SUMMARY TABLE (one row per input) ──
+      let sumHead='',sumRows='';
+      if(multiInput){
+        sumHead=`<tr>
+          <th style="${THG}left;">Input</th>
+          <th style="${THG}right;">Receipt Qty</th>
+          <th style="${THG}right;">Utilised</th>
+          <th style="${THG}right;">Exec %</th>
+        </tr>`;
+        sumRows=inputDataArr.map(({inp,iOpen,iUtil,iPct})=>{
+          const c=iPct>=60?'#16a34a':iPct>=30?'#d97706':'#dc2626';
+          return`<tr>
+            <td style="${TD}">${inp}</td>
+            <td style="${TDR}">${fmt(sumCol(getRows([inp],selectedRegion||'__ALL__'),cols.receiptCol))}</td>
+            <td style="${TDR}color:#2563eb;">${fmt(iUtil)}</td>
+            <td style="${TDR}font-weight:700;color:${c};">${iPct.toFixed(1)}%</td>
+          </tr>`;
+        }).join('');
+      } else {
+        sumHead=`<tr>
+          <th style="${THG}left;">Input</th>
+          <th style="${THG}right;">Receipt Qty</th>
+          <th style="${THG}right;">Utilised</th>
+          <th style="${THG}right;">Exec %</th>
+        </tr>`;
+        const{iOpen,iUtil,iPct}=inputDataArr[0];
+        const c=iPct>=60?'#16a34a':iPct>=30?'#d97706':'#dc2626';
+        sumRows=`<tr>
+          <td style="${TD}">${inputDataArr[0].inp}</td>
+          <td style="${TDR}">${fmt(iOpen)}</td>
+          <td style="${TDR}color:#2563eb;">${fmt(iUtil)}</td>
+          <td style="${TDR}font-weight:700;color:${c};">${iPct.toFixed(1)}%</td>
+        </tr>`;
+      }
+
+      // ── DM-AREA WISE TABLE ──
+      // Build header rows
+      let dmHead='';
+      if(multiInput){
+        // Row 1: Region / DM HQ / DM Name + merged input name headers + Total Exec%
+        const totalInputCols=inputDataArr.length*3+1; // 3 per input + 1 total
+        dmHead=`<tr>
+          <th style="${TH}left;" rowspan="2">Region</th>
+          <th style="${TH}left;" rowspan="2">DM HQ</th>
+          <th style="${TH}left;" rowspan="2">DM Name</th>`;
+        inputDataArr.forEach(({inp})=>{
+          dmHead+=`<th style="${THSUB}center;" colspan="3">${inp}</th>`;
+        });
+        dmHead+=`<th style="${TH}center;" rowspan="2">Total<br/>Exec %</th></tr>`;
+        // Row 2: Opening / Utilised / Exec% per input
+        dmHead+='<tr>';
+        inputDataArr.forEach(()=>{
+          dmHead+=`<th style="${THSUB}right;">Receipt Qty</th><th style="${THSUB}right;">Utilised</th><th style="${THSUB}right;">Exec %</th>`;
+        });
+        dmHead+='</tr>';
+      } else {
+        dmHead=`<tr>
+          <th style="${TH}left;">Region</th>
+          <th style="${TH}left;">DM HQ</th>
+          <th style="${TH}left;">DM Name</th>
+          <th style="${TH}right;">Receipt Qty</th>
+          <th style="${TH}right;">Utilised</th>
+          <th style="${TH}right;">Exec %</th>
+        </tr>`;
+      }
+
+      // Build DM rows
+      const openC=cols.openCol,utilC=cols.utilCol;
+      const dmAreaC=cols.dmAreaCol,soNameC=cols.soNameCol;
+      let dmHtml='';
+
+      // Total row
+      const colspanFixed=3;
+      if(multiInput){
+        dmHtml+=`<tr style="background:#eff6ff;">
+          <td colspan="3" style="${TDTOT}text-align:left;">${region} — Total</td>`;
+        let rTotO=0,rTotU=0;
+        inputDataArr.forEach(({inp,iOpen,iUtil,iPct})=>{
+          rTotO+=iOpen;rTotU+=iUtil;
+          dmHtml+=`<td style="${TDTOT}border-left:2px solid #c7d2fe;">${fmt(iOpen)}</td><td style="${TDTOT}color:#2563eb;">${fmt(iUtil)}</td>${pctTd(iPct,'')}`;
+        });
+        dmHtml+=totalPctTd(execPct(rTotU,rTotO))+'</tr>';
+      } else {
+        const pc=totPct>=60?'#16a34a':totPct>=30?'#d97706':'#dc2626';
+        dmHtml+=`<tr style="background:#eff6ff;">
+          <td colspan="3" style="${TDTOT}text-align:left;">${region} — Total</td>
+          <td style="${TDTOT}">${fmt(totOpen)}</td>
+          <td style="${TDTOT}color:#2563eb;">${fmt(totUtil)}</td>
+          <td style="${TDTOT}color:${pc};">${totPct.toFixed(1)}%</td>
+        </tr>`;
+      }
+
+      // DM rows
+      dmData.forEach(dm=>{
+        if(multiInput){
+          dmHtml+=`<tr>
+            <td style="${TD}"></td>
+            <td style="${TD}font-weight:700;">${dm.dmHQ}</td>
+            <td style="${TD}color:#2563eb;">${dm.dmName}</td>`;
+          let dTotO=0,dTotU=0;
+          inputDataArr.forEach(({inp})=>{
+            const dRows=allRows.filter(r=>r[cols.inputCol]===inp&&((dmAreaC?r[dmAreaC]:null)||'—')===dm.dmHQ);
+            const dR=sumCol(dRows,receiptC),dO=sumCol(dRows,openC),dU=sumCol(dRows,utilC),dP=execPct(dU,dR);
+            dTotO+=dO;dTotU+=dU;
+            dmHtml+=`<td style="${TDR}border-left:2px solid #e0e7ff;">${fmt(dO)}</td><td style="${TDR}color:#2563eb;">${fmt(dU)}</td>${pctTd(dP)}`;
+          });
+          dmHtml+=totalPctTd(execPct(dTotU,dTotO))+'</tr>';
+          // SO rows
+          dm.soRows.forEach(so=>{
+            dmHtml+=`<tr style="background:#fafafa;">
+              <td style="${TD}"></td>
+              <td style="${TD}padding-left:22px;color:#888;">└ SO</td>
+              <td style="${TD}">${so.soName}</td>`;
+            let sTotO=0,sTotU=0;
+            inputDataArr.forEach(({inp})=>{
+              const sRows=allRows.filter(r=>r[cols.inputCol]===inp&&((soNameC?r[soNameC]:null)||'—')===so.soName&&((dmAreaC?r[dmAreaC]:null)||'—')===dm.dmHQ);
+              const sRR=cols.receiptCol?sumCol(sRows,cols.receiptCol):0,sU=sumCol(sRows,utilC),sP=execPct(sU,sRR);
+              sTotO+=sO;sTotU+=sU;
+              dmHtml+=`<td style="${TDR}border-left:2px solid #e0e7ff;">${sRows.length?fmt(sO):'—'}</td><td style="${TDR}color:#2563eb;">${sRows.length?fmt(sU):'—'}</td><td style="${TDR}">${sRows.length?pctTd(sP).replace(/<td[^>]*>/,'').replace('</td>',''):'—'}</td>`;
+            });
+            dmHtml+=totalPctTd(execPct(sTotU,sTotO))+'</tr>';
+          });
+        } else {
+          const dc=dm.dmPct>=60?'#16a34a':dm.dmPct>=30?'#d97706':'#dc2626';
+          dmHtml+=`<tr>
+            <td style="${TD}"></td>
+            <td style="${TD}font-weight:700;">${dm.dmHQ}</td>
+            <td style="${TD}color:#2563eb;">${dm.dmName}</td>
+            <td style="${TDR}">${fmt(dm.dmOpen)}</td>
+            <td style="${TDR}color:#2563eb;">${fmt(dm.dmUtil)}</td>
+            <td style="${TDR}font-weight:700;color:${dc};">${dm.dmPct.toFixed(1)}%</td>
+          </tr>`;
+          dm.soRows.forEach(so=>{
+            const sc=so.soPct>=60?'#16a34a':so.soPct>=30?'#d97706':'#dc2626';
+            dmHtml+=`<tr style="background:#fafafa;">
+              <td style="${TD}"></td>
+              <td style="${TD}padding-left:22px;color:#888;">└ SO</td>
+              <td style="${TD}">${so.soName}</td>
+              <td style="${TDR}">${fmt(so.soOpen)}</td>
+              <td style="${TDR}color:#2563eb;">${fmt(so.soUtil)}</td>
+              <td style="${TDR}font-weight:700;color:${sc};">${so.soPct.toFixed(1)}%</td>
+            </tr>`;
+          });
+        }
+      });
+
+      // Key findings
+      const zeroSOs=[],strongSOs=[];let bestDM=null;
+      dmData.forEach(dm=>{
+        dm.soRows.forEach(so=>{
+          if(so.soPct===0)zeroSOs.push(`${so.soName} [${dm.dmHQ}]`);
+          if(so.soPct>=60)strongSOs.push(`${so.soName} [${dm.dmHQ}] — ${so.soPct.toFixed(1)}%`);
+        });
+        if(!bestDM||dm.dmPct>bestDM.dmPct)bestDM=dm;
+      });
+      const bestDMStr=bestDM?`${bestDM.dmHQ} (${bestDM.dmName}) — ${bestDM.dmPct.toFixed(1)}%`:'—';
+
+      body=`
+<p style="font-size:15px;font-weight:700;margin:0 0 2px;">${title}</p>
+<p style="font-size:11px;color:#6b7280;margin:0 0 14px;">As on ${today}${division?' | Division: '+division:''} | Inputs Only</p>
+<p style="font-size:13px;margin:0 0 18px;">Dear <strong>${rsmName||'[RSM Name]'}</strong>,<br/><span style="font-size:12px;color:#555;">Please find below the input execution summary for your region.</span></p>
+
+<p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;border-bottom:2px solid #1e3a5f;padding-bottom:4px;margin:0 0 8px;">REGION SUMMARY</p>
+<table style="border-collapse:collapse;width:100%;font-size:12px;margin-bottom:20px;">
+  <thead>${sumHead}</thead><tbody>${sumRows}</tbody>
+</table>
+
+<p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;border-bottom:2px solid #1e3a5f;padding-bottom:4px;margin:0 0 8px;">DM-AREA WISE EXECUTION</p>
+<table style="border-collapse:collapse;width:100%;font-size:12px;margin-bottom:20px;">
+  <thead>${dmHead}</thead><tbody>${dmHtml}</tbody>
+</table>
+
+<p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;border-bottom:2px solid #1e3a5f;padding-bottom:4px;margin:0 0 8px;">KEY FINDINGS</p>
+<p style="margin:5px 0;">📌 <strong>Overall Exec%:</strong> <span style="color:${pctColorVal};font-weight:700;">${totPct.toFixed(1)}%</span> — <strong>${statusLabel}</strong></p>
+<p style="margin:5px 0;">✅ <strong style="color:#16a34a;">SOs with Strong execution (≥60%):</strong> ${strongSOs.length?strongSOs.join(', '):'None'}</p>
+<p style="margin:5px 0;">🔴 <strong style="color:#dc2626;">SOs with 0% execution:</strong> ${zeroSOs.length?zeroSOs.join(', '):'None'}</p>
+<p style="margin:5px 0;">🏆 <strong style="color:#2563eb;">Best DM area:</strong> ${bestDMStr}</p>
+<p style="margin:12px 0 0;color:#555;font-style:italic;">Kindly ensure corrective action on lagging territories before month-end.</p>
+<p style="margin:18px 0 0;border-top:1px solid #e5e7eb;padding-top:12px;">Regards,<br/><strong>${getBMName()}</strong></p>`;
+
+    } else {
+      // ── BIRDS EYE EMAIL ──
+      if(!bevData)return;
+      const{regionData,totOpen,totUtil,totPct,allRows}=bevData;
+      const division=allRows[0]?Object.values(allRows[0])[1]||'':'';
+      const pctColorVal=totPct>=60?'#16a34a':totPct>=30?'#d97706':'#dc2626';
+      const statusLabel=totPct>=60?'STRONG ✅':totPct>=30?'MODERATE ⚠️':'LOW ❌';
+      title='HO Bird Eye View — All Regions';
+
+      // Build header
+      let bevHead='';
+      if(multiInput){
+        bevHead='<tr><th style="'+TH+'left;" rowspan="2">Region</th>';
+        selectedInputs.forEach(inp=>{bevHead+=`<th style="${THSUB}center;" colspan="3">${inp}</th>`;});
+        bevHead+=`<th style="${TH}center;" rowspan="2">Total<br/>Exec %</th></tr><tr>`;
+        selectedInputs.forEach(()=>{bevHead+=`<th style="${THSUB}right;">Receipt Qty</th><th style="${THSUB}right;">Utilised</th><th style="${THSUB}right;">Exec %</th>`;});
+        bevHead+='</tr>';
+      } else {
+        bevHead=`<tr>
+          <th style="${TH}left;">Region</th>
+          <th style="${TH}right;">Receipt Qty</th>
+          <th style="${TH}right;">Utilised</th>
+          <th style="${TH}right;">Exec %</th>
+        </tr>`;
+      }
+
+      // Build rows
+      const openC=cols.openCol,utilC=cols.utilCol;
+      let bevHtml='';
+      // Total row
+      if(multiInput){
+        bevHtml=`<tr style="background:#eff6ff;"><td style="${TDTOT}text-align:left;">ALL REGIONS — Total</td>`;
+        let gTotO=0,gTotU=0;
+        selectedInputs.forEach(inp=>{
+          const iRows=allRows.filter(r=>r[cols.inputCol]===inp);
+          const iRR=cols.receiptCol?sumCol(iRows,cols.receiptCol):0,iU=sumCol(iRows,utilC),iP=execPct(iU,iRR);
+          gTotO+=iRR;gTotU+=iU;
+          bevHtml+=`<td style="${TDTOT}border-left:2px solid #c7d2fe;">${fmt(iRR)}</td><td style="${TDTOT}color:#2563eb;">${fmt(iU)}</td>${pctTd(iP)}`;
+        });
+        bevHtml+=totalPctTd(execPct(gTotU,gTotO))+'</tr>';
+        regionData.forEach(({rg,rOpen,rUtil,rPct,perInput})=>{
+          bevHtml+=`<tr><td style="${TD}font-weight:600;">${rg}</td>`;
+          let rTotO=0,rTotU=0;
+          perInput.forEach(({iO,iU,iP})=>{
+            rTotO+=iO;rTotU+=iU;
+            bevHtml+=`<td style="${TDR}border-left:2px solid #e0e7ff;">${fmt(iO)}</td><td style="${TDR}color:#2563eb;">${fmt(iU)}</td>${pctTd(iP)}`;
+          });
+          bevHtml+=totalPctTd(execPct(rTotU,rTotO))+'</tr>';
+        });
+      } else {
+        bevHtml=`<tr style="background:#eff6ff;"><td style="${TDTOT}text-align:left;">ALL REGIONS — Total</td><td style="${TDTOT}">${fmt(totOpen)}</td><td style="${TDTOT}color:#2563eb;">${fmt(totUtil)}</td>${pctTd(totPct)}</tr>`;
+        regionData.forEach(({rg,rOpen,rUtil,rPct})=>{
+          bevHtml+=`<tr><td style="${TD}font-weight:600;">${rg}</td><td style="${TDR}">${fmt(rOpen)}</td><td style="${TDR}color:#2563eb;">${fmt(rUtil)}</td>${pctTd(rPct)}</tr>`;
+        });
+      }
+
+      const zeroRegions=regionData.filter(r=>r.rPct===0).map(r=>r.rg);
+      const strongRegions=regionData.filter(r=>r.rPct>=60).map(r=>`${r.rg} — ${r.rPct.toFixed(1)}%`);
+      const bestRegion=regionData[0];
+
+      body=`
+<p style="font-size:15px;font-weight:700;margin:0 0 2px;">${title}</p>
+<p style="font-size:11px;color:#6b7280;margin:0 0 14px;">As on ${today}${division?' | Division: '+division:''} | All Inputs</p>
+<p style="font-size:13px;margin:0 0 18px;">Dear <strong>Team</strong>,<br/><span style="font-size:12px;color:#555;">Please find below the Bird Eye View execution summary across all regions for the following input(s): <strong>${selectedInputs.join(', ')}</strong>.</span></p>
+
+<p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;border-bottom:2px solid #1e3a5f;padding-bottom:4px;margin:0 0 8px;">REGION-WISE EXECUTION</p>
+<table style="border-collapse:collapse;width:100%;font-size:12px;margin-bottom:20px;">
+  <thead>${bevHead}</thead><tbody>${bevHtml}</tbody>
+</table>
+
+<p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;border-bottom:2px solid #1e3a5f;padding-bottom:4px;margin:0 0 8px;">KEY FINDINGS</p>
+<p style="margin:5px 0;">📌 <strong>Overall Exec%:</strong> <span style="color:${pctColorVal};font-weight:700;">${totPct.toFixed(1)}%</span> — <strong>${statusLabel}</strong></p>
+<p style="margin:5px 0;">✅ <strong style="color:#16a34a;">Strong Regions (≥60%):</strong> ${strongRegions.length?strongRegions.join(', '):'None'}</p>
+<p style="margin:5px 0;">🔴 <strong style="color:#dc2626;">Regions with 0% execution:</strong> ${zeroRegions.length?zeroRegions.join(', '):'None'}</p>
+<p style="margin:5px 0;">🏆 <strong style="color:#2563eb;">Best Region:</strong> ${bestRegion?bestRegion.rg+' — '+bestRegion.rPct.toFixed(1)+'%':'—'}</p>
+<p style="margin:12px 0 0;color:#555;font-style:italic;">Kindly ensure corrective action on lagging territories before month-end.</p>
+<p style="margin:18px 0 0;border-top:1px solid #e5e7eb;padding-top:12px;">Regards,<br/><strong>${getBMName()}</strong></p>`;
+    }
+
+    document.getElementById('epTitle').textContent=title;
+    document.getElementById('emailPreviewBody').innerHTML=`<div style="font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;max-width:900px;">${body}</div>`;
+  }
+
+  // ── Copy email ──────────────────────────────────────────────────────────
+  async function copyEmail(){
+    const html=document.getElementById('emailPreviewBody').innerHTML;
+    const btn=document.getElementById('copyBtn');
+    try{
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html':new Blob([html],{type:'text/html'}),
+        'text/plain':new Blob(['See HTML email'],{type:'text/plain'})
+      })]);
+      btn.textContent='✅ Copied!';btn.classList.add('success');
+      setTimeout(()=>{btn.textContent='📋 Copy email';btn.classList.remove('success');},2500);
+    }catch{
+      const el=document.getElementById('emailPreviewBody');
+      const range=document.createRange();range.selectNode(el);
+      window.getSelection().removeAllRanges();window.getSelection().addRange(range);
+      document.execCommand('copy');window.getSelection().removeAllRanges();
+      btn.textContent='✅ Copied!';btn.classList.add('success');
+      setTimeout(()=>{btn.textContent='📋 Copy email';btn.classList.remove('success');},2500);
+    }
+  }
+
+  // ── Download Excel (Region View) ────────────────────────────────────────
+  function downloadRegionExcel(){
+    if(!emailData)return;
+    const{region,inputDataArr,allRows,totOpen,totUtil,totPct,dmData,division,rsmName}=emailData;
+    const today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const multiInput=selectedInputs.length>1;
+    const utilC=cols.utilCol,receiptC=cols.receiptCol;
+    const dmAreaC=cols.dmAreaCol,soNameC=cols.soNameCol;
+
+    const wb=XLSX.utils.book_new();
+    const rows=[];
+
+    // Title rows
+    rows.push([`Execution Report – ${region}`]);
+    rows.push([`As on ${today}${division?' | Division: '+division:''}${rsmName?' | RSM: '+rsmName:''}`]);
+    rows.push([]);
+
+    if(multiInput){
+      // Header row 1 – input names spanning 3 cols each
+      const h1=['Region','DM HQ','DM Name'];
+      selectedInputs.forEach(inp=>h1.push(inp,'',''));
+      h1.push('Total Exec %');
+      rows.push(h1);
+      // Header row 2 – sub columns
+      const h2=['','',''];
+      selectedInputs.forEach(()=>h2.push('Receipt Qty','Utilised','Exec %'));
+      h2.push('');
+      rows.push(h2);
+
+      // Region total
+      const rTot=['ALL — '+region,'',''];
+      let rTotR=0,rTotU=0;
+      inputDataArr.forEach(({inp,iUtil,iReceipt})=>{
+        rTotR+=iReceipt||0; rTotU+=iUtil||0;
+        rTot.push(iReceipt||0, iUtil||0, iUtil&&iReceipt?(iUtil/iReceipt*100).toFixed(1)+'%':'0.0%');
+      });
+      rTot.push(rTotR&&rTotU?(rTotU/rTotR*100).toFixed(1)+'%':'0.0%');
+      rows.push(rTot);
+
+      // DM rows
+      dmData.forEach(dm=>{
+        const dmRow=['',dm.dmHQ,dm.dmName];
+        let dTotR=0,dTotU=0;
+        inputDataArr.forEach(({inp})=>{
+          const dRows=allRows.filter(r=>r[cols.inputCol]===inp&&((dmAreaC?r[dmAreaC]:null)||'—')===dm.dmHQ);
+          const dR=receiptC?sumCol(dRows,receiptC):0, dU=sumCol(dRows,utilC);
+          dTotR+=dR; dTotU+=dU;
+          dmRow.push(dR, dU, dR?(dU/dR*100).toFixed(1)+'%':'0.0%');
+        });
+        dmRow.push(dTotR?(dTotU/dTotR*100).toFixed(1)+'%':'0.0%');
+        rows.push(dmRow);
+
+        dm.soRows.forEach(so=>{
+          const soRow=['','└ SO',so.soName];
+          let sTotR=0,sTotU=0;
+          inputDataArr.forEach(({inp})=>{
+            const sRows=allRows.filter(r=>r[cols.inputCol]===inp&&((soNameC?r[soNameC]:null)||'—')===so.soName&&((dmAreaC?r[dmAreaC]:null)||'—')===dm.dmHQ);
+            const sR=receiptC?sumCol(sRows,receiptC):0, sU=sumCol(sRows,utilC);
+            sTotR+=sR; sTotU+=sU;
+            soRow.push(sRows.length?sR:'—', sRows.length?sU:'—', sRows.length&&sR?(sU/sR*100).toFixed(1)+'%':'—');
+          });
+          soRow.push(sTotR?(sTotU/sTotR*100).toFixed(1)+'%':'0.0%');
+          rows.push(soRow);
+        });
+      });
+
+    } else {
+      rows.push(['Region','DM HQ','DM Name','Receipt Qty','Utilised','Exec %']);
+      const totR=receiptC?sumCol(allRows,receiptC):0, totU=sumCol(allRows,utilC);
+      rows.push([region+' — Total','','',totR, totU, totR?(totU/totR*100).toFixed(1)+'%':'0.0%']);
+      dmData.forEach(dm=>{
+        rows.push(['',dm.dmHQ,dm.dmName,dm.dmOpen,dm.dmUtil,dm.dmOpen?(dm.dmUtil/dm.dmOpen*100).toFixed(1)+'%':'0.0%']);
+        dm.soRows.forEach(so=>{
+          rows.push(['','└ SO',so.soName,so.soOpen,so.soUtil,so.soOpen?(so.soUtil/so.soOpen*100).toFixed(1)+'%':'0.0%']);
+        });
+      });
+    }
+
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+
+    // Column widths
+    ws['!cols']=[{wch:24},{wch:18},{wch:26}];
+    if(multiInput){selectedInputs.forEach(()=>ws['!cols'].push({wch:13},{wch:13},{wch:10}));ws['!cols'].push({wch:12});}
+    else ws['!cols'].push({wch:13},{wch:13},{wch:10});
+
+    // Merges for multi-input input name headers
+    if(multiInput){
+      const merges=[
+        {s:{r:0,c:0},e:{r:0,c:2+selectedInputs.length*3}},
+        {s:{r:1,c:0},e:{r:1,c:2+selectedInputs.length*3}},
+      ];
+      let mc=3;
+      selectedInputs.forEach(()=>{merges.push({s:{r:3,c:mc},e:{r:3,c:mc+2}});mc+=3;});
+      merges.push({s:{r:3,c:0},e:{r:4,c:0}});
+      merges.push({s:{r:3,c:1},e:{r:4,c:1}});
+      merges.push({s:{r:3,c:2},e:{r:4,c:2}});
+      merges.push({s:{r:3,c:mc},e:{r:4,c:mc}});
+      ws['!merges']=merges;
+    } else {
+      ws['!merges']=[
+        {s:{r:0,c:0},e:{r:0,c:5}},
+        {s:{r:1,c:0},e:{r:1,c:5}},
+      ];
+    }
+
+    XLSX.utils.book_append_sheet(wb,ws,'Region Execution');
+    if(allRows.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(allRows),'Raw Data');
+    XLSX.writeFile(wb,`RegionExecution_${region.replace(/ /g,'_')}_${today.replace(/ /g,'_')}.xlsx`);
+  }
+
+  // ── Download Excel (Birds Eye) ──────────────────────────────────────────
+  function downloadBevExcel(){
+    if(!bevData)return;
+    const{regionData,totOpen,totUtil,totPct,allRows}=bevData;
+    const today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const division=allRows[0]?Object.values(allRows[0])[1]||'':'';
+    const multiInput=selectedInputs.length>1;
+    const utilC=cols.utilCol, receiptC=cols.receiptCol;
+
+    const wb=XLSX.utils.book_new();
+    const rows=[];
+
+    rows.push([`HO Bird Eye View — All Regions`]);
+    rows.push([`As on ${today}${division?' | Division: '+division:''}`]);
+    if(selectedInputs.length) rows.push([`Inputs: ${selectedInputs.join(', ')}`]);
+    rows.push([]);
+
+    if(multiInput){
+      const h1=['Region'];
+      selectedInputs.forEach(inp=>h1.push(inp,'',''));
+      h1.push('Total Exec %');
+      rows.push(h1);
+
+      const h2=[''];
+      selectedInputs.forEach(()=>h2.push('Receipt Qty','Utilised','Exec %'));
+      h2.push('');
+      rows.push(h2);
+
+      // Grand total
+      const tRow=['ALL REGIONS — Total'];
+      let gTotR=0,gTotU=0;
+      selectedInputs.forEach(inp=>{
+        const iRows=allRows.filter(r=>r[cols.inputCol]===inp);
+        const iR=receiptC?sumCol(iRows,receiptC):0, iU=sumCol(iRows,utilC);
+        gTotR+=iR; gTotU+=iU;
+        tRow.push(iR, iU, iR?(iU/iR*100).toFixed(1)+'%':'0.0%');
+      });
+      tRow.push(gTotR?(gTotU/gTotR*100).toFixed(1)+'%':'0.0%');
+      rows.push(tRow);
+
+      regionData.forEach(({rg,perInput,rPct})=>{
+        const row=[rg];
+        let rTR=0,rTU=0;
+        perInput.forEach(({iO,iU})=>{rTR+=iO;rTU+=iU;row.push(iO,iU,iO?(iU/iO*100).toFixed(1)+'%':'0.0%');});
+        row.push(rTR?(rTU/rTR*100).toFixed(1)+'%':'0.0%');
+        rows.push(row);
+      });
+
+    } else {
+      rows.push(['Region','Receipt Qty','Utilised','Exec %']);
+      const totR=receiptC?sumCol(allRows,receiptC):0, totU=sumCol(allRows,utilC);
+      rows.push(['ALL REGIONS — Total', totR, totU, totR?(totU/totR*100).toFixed(1)+'%':'0.0%']);
+      regionData.forEach(({rg,rOpen,rUtil,rPct})=>{
+        rows.push([rg, rOpen, rUtil, rOpen?(rUtil/rOpen*100).toFixed(1)+'%':'0.0%']);
+      });
+    }
+
+    const totalCols=multiInput?1+selectedInputs.length*3+1:4;
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:28}];
+    if(multiInput){selectedInputs.forEach(()=>ws['!cols'].push({wch:13},{wch:13},{wch:10}));ws['!cols'].push({wch:12});}
+    else ws['!cols'].push({wch:13},{wch:13},{wch:10});
+
+    const merges=[
+      {s:{r:0,c:0},e:{r:0,c:totalCols-1}},
+      {s:{r:1,c:0},e:{r:1,c:totalCols-1}},
+      {s:{r:2,c:0},e:{r:2,c:totalCols-1}},
+    ];
+    if(multiInput){
+      let mc=1;
+      selectedInputs.forEach(()=>{merges.push({s:{r:4,c:mc},e:{r:4,c:mc+2}});mc+=3;});
+      merges.push({s:{r:4,c:0},e:{r:5,c:0}});
+      merges.push({s:{r:4,c:mc},e:{r:5,c:mc}});
+    }
+    ws['!merges']=merges;
+
+    XLSX.utils.book_append_sheet(wb,ws,'Bird Eye Summary');
+    if(allRows.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(allRows),'Raw Data');
+    XLSX.writeFile(wb,`BirdEyeView_${today.replace(/ /g,'_')}.xlsx`);
+  }
+
+  
+  // ── WhatsApp ──────────────────────────────────────────────────────────────
+  let waMode='region';
+
+  function openWaModal(mode){
+    waMode=mode;
+    const text=buildWaText(mode);
+    document.getElementById('waPreviewCard').textContent=text;
+    document.getElementById('waRenderTarget').innerHTML=buildWaHtml(mode);
+    document.getElementById('waOverlay').classList.remove('hidden');
+  }
+  function closeWaModal(){
+    document.getElementById('waOverlay').classList.add('hidden');
+  }
+
+  function buildWaHtml(mode){
+    buildEmailPreview(mode);
+    return document.getElementById('emailPreviewBody').innerHTML;
+  }
+
+  function buildWaText(mode){
+    const today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const multiInput=selectedInputs.length>1;
+
+    if(mode==='region'){
+      if(!emailData)return'';
+      const{region,inputDataArr,allRows,totOpen,totUtil,totPct,dmData,division,rsmName}=emailData;
+      const statusLabel=totPct>=60?'STRONG ✅':totPct>=30?'MODERATE ⚠️':'LOW ❌';
+      const lines=[];
+      lines.push(`📊 *Input Execution Report – ${region}*`);
+      lines.push(`📅 As on ${today}${division?' | Division: '+division:''}`);
+      lines.push('');
+      lines.push(`Dear *${rsmName||'Team'}*,`);
+      lines.push('Please find below the input execution summary.');
+      lines.push('');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push('📋 *REGION SUMMARY*');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      inputDataArr.forEach(({inp,iUtil,iReceipt,iPct})=>{
+        const star=iPct>=60?'🟢':iPct>=30?'🟡':'🔴';
+        lines.push(`${star} *${inp}*`);
+        lines.push(`   Receipt: ${fmt(iReceipt||0)} | Utilised: ${fmt(iUtil)} | Exec: *${iPct.toFixed(1)}%*`);
+      });
+      lines.push('');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push('🏢 *DM-AREA WISE EXECUTION*');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push(`*${region} — Total* | Util: ${fmt(totUtil)} | *${totPct.toFixed(1)}%*`);
+      dmData.forEach(dm=>{
+        const star=dm.dmPct>=60?'🟢':dm.dmPct>=30?'🟡':'🔴';
+        lines.push(`${star} *${dm.dmHQ}* (${dm.dmName}) — Util: ${fmt(dm.dmUtil)} = *${dm.dmPct.toFixed(1)}%*`);
+        dm.soRows.forEach(so=>{
+          const ss=so.soPct>=60?'🟢':so.soPct>=30?'🟡':'🔴';
+          lines.push(`   └ ${ss} ${so.soName} — ${fmt(so.soUtil)} = *${so.soPct.toFixed(1)}%*`);
+        });
+      });
+      lines.push('');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push('🔍 *KEY FINDINGS*');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push(`📌 Overall: *${totPct.toFixed(1)}%* — ${statusLabel}`);
+      const zeroSOs=[],strongSOs=[];let bestDM=null;
+      dmData.forEach(dm=>{
+        dm.soRows.forEach(so=>{
+          if(so.soPct===0)zeroSOs.push(`${so.soName} [${dm.dmHQ}]`);
+          if(so.soPct>=60)strongSOs.push(`${so.soName} [${dm.dmHQ}]`);
+        });
+        if(!bestDM||dm.dmPct>bestDM.dmPct)bestDM=dm;
+      });
+      lines.push(`✅ Strong SOs: ${strongSOs.length?strongSOs.join(', '):'None'}`);
+      lines.push(`🔴 Zero SOs: ${zeroSOs.length?zeroSOs.join(', '):'None'}`);
+      lines.push(`🏆 Best DM: ${bestDM?bestDM.dmHQ+' ('+bestDM.dmName+') — '+bestDM.dmPct.toFixed(1)+'%':'—'}`);
+      lines.push('');
+      lines.push('_Kindly ensure corrective action on lagging territories before month-end._');
+      lines.push('');
+      lines.push('Regards,');
+      lines.push('*'+getBMName()+'*');
+      return lines.join('\n');
+
+    } else {
+      if(!bevData)return'';
+      const{regionData,totOpen,totUtil,totPct,allRows}=bevData;
+      const division=allRows[0]?Object.values(allRows[0])[1]||'':'';
+      const statusLabel=totPct>=60?'STRONG ✅':totPct>=30?'MODERATE ⚠️':'LOW ❌';
+      const lines=[];
+      lines.push('🌐 *HO Bird Eye View — All Regions*');
+      lines.push(`📅 As on ${today}${division?' | Division: '+division:''}`);
+      lines.push(`📦 Inputs: *${selectedInputs.join(', ')}*`);
+      lines.push('');
+      lines.push('Dear *Team*,');
+      lines.push('Please find below the Bird Eye View execution summary for: *'+selectedInputs.join(', ')+'*');
+      lines.push('');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push('📊 *REGION-WISE EXECUTION*');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push(`*ALL REGIONS Total* | Util: ${fmt(totUtil)} | *${totPct.toFixed(1)}%*`);
+      regionData.forEach(({rg,rUtil,rPct})=>{
+        const star=rPct>=60?'🟢':rPct>=30?'🟡':'🔴';
+        lines.push(`${star} *${rg}* — Util: ${fmt(rUtil)} = *${rPct.toFixed(1)}%*`);
+      });
+      lines.push('');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      lines.push('🔍 *KEY FINDINGS*');
+      lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+      const zeroR=regionData.filter(r=>r.rPct===0).map(r=>r.rg);
+      const strongR=regionData.filter(r=>r.rPct>=60).map(r=>r.rg);
+      lines.push(`📌 Overall: *${totPct.toFixed(1)}%* — ${statusLabel}`);
+      lines.push(`✅ Strong Regions: ${strongR.length?strongR.join(', '):'None'}`);
+      lines.push(`🔴 Zero Regions: ${zeroR.length?zeroR.join(', '):'None'}`);
+      lines.push(`🏆 Best: ${regionData[0]?regionData[0].rg+' — '+regionData[0].rPct.toFixed(1)+'%':'—'}`);
+      lines.push('');
+      lines.push('_Kindly ensure corrective action on lagging territories before month-end._');
+      lines.push('');
+      lines.push('Regards,');
+      lines.push('*'+getBMName()+'*');
+      return lines.join('\n');
+    }
+  }
+
+  async function doWhatsAppShare(action='share'){
+    const btn=action==='share'
+      ?document.getElementById('waShareBtn')
+      :document.getElementById('waDownloadBtn');
+    const otherBtn=action==='share'
+      ?document.getElementById('waDownloadBtn')
+      :document.getElementById('waShareBtn');
+    btn.textContent='⏳ Generating…';btn.disabled=true;otherBtn.disabled=true;
+
+    const resetBtns=()=>{
+      document.getElementById('waShareBtn').textContent='💬 Share on WhatsApp';
+      document.getElementById('waShareBtn').disabled=false;
+      document.getElementById('waDownloadBtn').textContent='⬇️ Download PNG';
+      document.getElementById('waDownloadBtn').disabled=false;
+    };
+
+    try{
+      const target=document.getElementById('waRenderTarget');
+      target.style.visibility='visible';
+      target.style.zIndex='9999';
+      target.style.top='-9999px';
+      await new Promise(r=>setTimeout(r,150));
+
+      const canvas=await html2canvas(target,{
+        scale:2,backgroundColor:'#ffffff',
+        useCORS:true,logging:false,
+        width:720,scrollX:0,scrollY:0
+      });
+
+      target.style.visibility='hidden';
+      target.style.zIndex='-1';
+
+      canvas.toBlob(async blob=>{
+        if(!blob){resetBtns();return;}
+        const file=new File([blob],'ExecutionReport.png',{type:'image/png'});
+
+        if(action==='download'){
+          // Just download PNG
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement('a');
+          a.href=url;a.download='ExecutionReport.png';
+          document.body.appendChild(a);a.click();
+          document.body.removeChild(a);
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+          btn.textContent='✅ Downloaded!';
+          setTimeout(resetBtns,2500);
+          return;
+        }
+
+        // Share action
+        if(navigator.canShare&&navigator.canShare({files:[file]})){
+          try{
+            await navigator.share({files:[file],title:'Execution Report'});
+            btn.textContent='✅ Shared!';
+            setTimeout(resetBtns,2500);
+            return;
+          }catch(e){
+            if(e.name==='AbortError'){resetBtns();return;}
+          }
+        }
+
+        // Fallback: download PNG + open WhatsApp Web
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=url;a.download='ExecutionReport.png';
+        document.body.appendChild(a);a.click();
+        document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+        setTimeout(()=>{
+          window.open('https://web.whatsapp.com/','_blank');
+          btn.textContent='✅ Image saved — paste in WhatsApp!';
+          setTimeout(resetBtns,3000);
+        },600);
+
+      },'image/png');
+
+    }catch(err){
+      console.error('WA error:',err);
+      document.getElementById('waRenderTarget').style.visibility='hidden';
+      // Text-only fallback
+      const text=encodeURIComponent(buildWaText(waMode));
+      if(action==='share') window.open('https://wa.me/?text='+text,'_blank');
+      btn.textContent=action==='share'?'✅ Opened WhatsApp':'❌ Failed';
+      setTimeout(resetBtns,2500);
+    }
+  }
+
+  // ── Reset ───────────────────────────────────────────────────────────────
+  function resetAll(){
+    csvData=[];headers=[];cols={};selectedInputs=[];selectedRegion='';emailData=null;bevData=null;
+    document.getElementById('csvInput').value='';
+    document.getElementById('fileChosen').classList.remove('show');
+    document.getElementById('fileName').textContent='';document.getElementById('fileRows').textContent='';
+    document.getElementById('inputList').innerHTML='';document.getElementById('selCount').textContent='0 selected';
+    document.getElementById('inputSearch').value='';
+    document.getElementById('regionInput').value='';document.getElementById('regionDropdown').innerHTML='';
+    document.getElementById('summaryWrap').classList.remove('show');
+    document.getElementById('sumThead').innerHTML='';document.getElementById('sumTbody').innerHTML='';
+    document.getElementById('panel4step').classList.add('hidden');
+    document.getElementById('emailPreviewOverlay').classList.add('hidden');
+    document.getElementById('waOverlay').classList.add('hidden');
+    setStep(1);showPanel(1);
+  }
+</script>
+
+  <!-- WhatsApp Modal -->
+  <div id="waOverlay" class="ep-overlay hidden">
+    <div class="ep-modal" style="max-width:560px;">
+      <div class="ep-modal-header">
+        <span>💬 Share on WhatsApp</span>
+        <div class="ep-modal-actions">
+          <button class="btn btn-wa" id="waShareBtn" onclick="doWhatsAppShare('share')" style="background:#25d366;">💬 Share on WhatsApp</button>
+          <button class="btn btn-wa" id="waDownloadBtn" onclick="doWhatsAppShare('download')" style="background:#128c7e;">⬇️ Download PNG</button>
+          <button class="ep-close" onclick="closeWaModal()">✕</button>
+        </div>
+      </div>
+      <div class="ep-modal-body" style="padding:16px;background:#e5ddd5;">
+        <div style="text-align:center;font-size:.78rem;color:#555;margin-bottom:10px;">
+          Preview — click Share to download screenshot &amp; open WhatsApp
+        </div>
+        <div id="waPreviewCard" style="background:#fff;border-radius:8px;padding:14px 16px;font-family:Arial,sans-serif;font-size:12px;line-height:1.7;color:#111;box-shadow:0 1px 4px rgba(0,0,0,.15);max-height:60vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden render target for screenshot (must be in DOM, just off-screen) -->
+  <div id="waRenderTarget" style="position:absolute;top:0;left:0;width:720px;padding:24px;background:#fff;font-family:Arial,sans-serif;font-size:12px;visibility:hidden;pointer-events:none;z-index:-1;"></div>
+
+</body>
+</html>
